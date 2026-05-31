@@ -6,7 +6,7 @@ pixel_to_mm = 1; %TODO - must change
 delta_t = 0.01;
 %TODO - change
 
-[img1, img2] = split_image("data\PIV\FMT Results\AoA15_final\B00001.tif");
+[img1, img2] = split_image("data\PIV\FMT Results\aoa5_final\B00001.tif");
 %figure(1)
 %imshow(img1)
 %figure(2)
@@ -73,19 +73,34 @@ end
 
 
 function plot_velocity_field(V, windowed_hor_size, windowed_vert_size, window_size)
-
     [X,Y] = meshgrid( ...
         (1:windowed_hor_size)*window_size - window_size/2, ...
         (1:windowed_vert_size)*window_size - window_size/2);
-    %disp(max(V(:))) %for debugging
+    
     v_x = V(:,:,1);
     v_y = V(:,:,2);
-
-    figure
+    magnitude = sqrt(v_x.^2 + v_y.^2);
     
-    quiver(X, flipud(Y), v_x, flipud(v_y), 'r');
+    figure
+    hold on
+    
+    surf(X, flipud(Y), zeros(size(X)), magnitude, 'EdgeColor', 'none', 'FaceColor', 'interp');
+    view(2); % Force 2D top-down view
+    
+    quiver(X, flipud(Y), v_x, flipud(v_y), 1.5, 'k', 'LineWidth', 1);
 
+    colormap('turbo');
+    cb = colorbar;
+    ylabel(cb, 'Velocity Magnitude (mm/s)');
+    
     axis equal
+    xlim([0, windowed_hor_size * window_size]);
+    ylim([0, windowed_vert_size * window_size]);
+    xlabel('X [pixels]');
+    ylabel('Y [pixels]');
+    title('PIV Velocity Field Distribution');
+    
+    hold off
     drawnow
 end
 
