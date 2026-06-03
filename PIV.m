@@ -40,7 +40,7 @@ processed_data_path = "data\PIV processed\Processed15\Overlap0SinglePass\B00001.
 %figure
 %plot_velocity_field(V, mask);
 
-compare_res_w_davis(processed_data_path, img_path)
+diffs = compare_res_w_davis(processed_data_path, img_path);
 
 %% Functions
 
