@@ -1,51 +1,71 @@
 
 clc, clear, close all
 
+%from prev calculations
+global window_size
+global delta_t
+global pixel_to_mm
+
 window_size = 32;
 delta_t = 74 * 10^(-6);
-%TODO - change
+img_path = "data\PIV\FMT Results\AoA15_final\B00001.tif";
 
 calibration_file = "data\PIV\FMT Results\cal_final\B00001.tif";
 pixel_to_mm = calibration(calibration_file, false);
-disp(["pix per mm", 1/pixel_to_mm])
-[img1, img2] = split_image("data\PIV\FMT Results\AoA15_final\B00001.tif");
-%figure(1)
-%imshow(img1)
-%figure(2)
-%imshow(img2)
-%figure(3)
-%windowed_img = blockproc(img1, ...
-%    [window_size window_size], ...
-%    @(block) sum(block.data(:)));
+disp(["pix per mm", 1/pixel_to_mm]) %for debugging
 
-%imshow(windowed_img,[])
+[img1, img2] = split_image(img_path);
 [height, width] = size(img1);
 
-windowed_vert_size = floor(height/window_size);
-windowed_hor_size = floor(width/window_size);
+V = get_velocity_field(img_path);
 
-V = zeros(windowed_vert_size, windowed_hor_size, 2);
+figure
+plot_velocity_field(V);
 
-for i = 1:windowed_hor_size
-    for j = 1:windowed_vert_size
-        %V(i,j) = find_displacement_of_window(img1, img2, window_size, j, i)/delta_t;
-        [dx, dy] = find_displacement_of_window(img1, img2, window_size, i, j);
-        %fprintf("dx=%f dy=%f\n", dx, dy); %for debugging
-
-        V(j,i,1) = dx *pixel_to_mm/delta_t / 1000; %to convert to m/s
-        V(j,i,2) = dy * pixel_to_mm/delta_t / 1000; %to convert to m/s
-    end
-end
-
-plot_velocity_field(V, windowed_hor_size, windowed_vert_size, window_size, pixel_to_mm);
-
-%TODOs still - add overlap, maybe multipass, FFT, wtf is normalized cross
+%maybe TODOs? - add overlap, maybe multipass, FFT, wtf is normalized cross
 %correlation??
 %sub-pixel peak fitting???
 
-plot_processed_data("data\PIV processed\Processed15\Overlap0SinglePass\B00001.dat");
+processed_data_path = "data\PIV processed\Processed15\Overlap0SinglePass\B00001.dat";
+[X, Y, v_x, v_y, mask] = get_processed_data(processed_data_path);
+[n_cols, n_rows] = extract_cols_rows(processed_data_path);
+figure
+plot_processed_data(X, Y, v_x, v_y, n_cols, n_rows);
+
+
+
+
+%testing the mask
+%figure
+%plot_velocity_field(V, mask);
+
+
 
 %% Functions
+
+function [V] = get_velocity_field(img_path)
+    global window_size
+    global pixel_to_mm
+    global delta_t
+    [img1, img2] = split_image(img_path);
+    [height, width] = size(img1);
+
+    windowed_vert_size = floor(height/window_size);
+    windowed_hor_size = floor(width/window_size);
+
+    V = zeros(windowed_vert_size, windowed_hor_size, 2);
+    
+    for i = 1:windowed_hor_size
+        for j = 1:windowed_vert_size
+            %V(i,j) = find_displacement_of_window(img1, img2, j, i)/delta_t;
+            [dx, dy] = find_displacement_of_window(img1, img2, i, j);
+            %fprintf("dx=%f dy=%f\n", dx, dy); %for debugging
+    
+            V(j,i,1) = dx *pixel_to_mm/delta_t / 1000; %to convert to m/s
+            V(j,i,2) = dy * pixel_to_mm/delta_t / 1000; %to convert to m/s
+        end
+    end
+end
 
 function [pix_to_mm] = calibration(file_name, plot)
     img = imread(file_name);
@@ -55,6 +75,7 @@ function [pix_to_mm] = calibration(file_name, plot)
         hold on
     end
     
+    %set values by hand
     x1 = 330;
     x2 = 1050;
     y1 = 1160;
@@ -73,9 +94,12 @@ function [img1, img2] = split_image(file_name)
     img1 = imcrop(img, [0, floor(height/2)+1, width, floor(height/2)]);
     img2 = imcrop(img, [0, 0, width, floor(height/2)]);
 end
-function [x_disp_pix, y_disp_pix] = find_displacement_of_window(img1, img2, window_size, wind_index_x, wind_index_y)
-    x_pixels = (wind_index_x-1) * window_size + 1 : wind_index_x * window_size;
-    y_pixels = (wind_index_y-1) * window_size +1 : wind_index_y * window_size;
+
+function [x_disp_pix, y_disp_pix] = find_displacement_of_window(img1, img2, window_index_x, window_index_y)
+    global window_size
+
+    x_pixels = (window_index_x-1) * window_size + 1 : window_index_x * window_size;
+    y_pixels = (window_index_y-1) * window_size +1 : window_index_y * window_size;
     
     %for more numerical accuracy
     window1 = double(img1(y_pixels, x_pixels));
@@ -95,28 +119,43 @@ function [x_disp_pix, y_disp_pix] = find_displacement_of_window(img1, img2, wind
 end
 
 
-function plot_velocity_field(V, windowed_hor_size, windowed_vert_size, window_size, pixel_to_mm, mask)
+function plot_velocity_field(V, mask)
+    global window_size
+    global pixel_to_mm
+    windowed_vert_size = size(V, 1);
+    windowed_hor_size = size(V, 2);
+    
 
+    if nargin < 2 || isempty(mask)
+        mask = true(windowed_vert_size, windowed_hor_size);
+    else
+        mask = reshape(mask, windowed_hor_size+1, windowed_vert_size+1)';
+        mask = mask(1:end-1, 1:end-1);
+    end
     [X,Y] = meshgrid( ...
         (1:windowed_hor_size)*window_size - window_size/2, ...
         (1:windowed_vert_size)*window_size - window_size/2);
     X = X * pixel_to_mm;
     Y = Y * pixel_to_mm;
     
-    size(X)
     %disp(max(V(:))) %for debugging
     v_x = V(:,:,1);
     v_y = V(:,:,2);
+    vel_magnitudes = hypot(v_x, v_y);
 
-    if mask
+    % ensure mask is logical
+    mask = logical(mask);
 
-            
-    vel_magnitudes = flipud(hypot(v_x, v_y));
+    % masking - id rather not risk vel_magnitudes bugging, so enforcing
+    % again
+    v_x(~mask) = NaN;
+    v_y(~mask) = NaN;
+    vel_magnitudes(~mask) = 0;
     
+    %flipping all to plot normally in matlab (where y=0 is at the top) -
+    %otherwise not comparable to the DaVis
+    Y = flipud(Y);
     
-      
-
-    figure
     %plotting the magnitude in terms of background color - like DaVis
     imagesc(X(1,:), Y(:,1), vel_magnitudes)
     set(gca,'YDir','normal')
@@ -126,39 +165,39 @@ function plot_velocity_field(V, windowed_hor_size, windowed_vert_size, window_si
     caxis([0 20]);
 
     hold on
-    quiver(X, flipud(Y), v_x, flipud(v_y), 'r');
+    quiver(X, Y, v_x, v_y, 'r');
 
     drawnow
 
 end
 
-
-
-function [] = plot_processed_data(file_name)
+function [X, Y, v_x, v_y, mask] = get_processed_data(file_name)
     %for all dat files, I hope NumHeaderLines=3
     data = importdata(file_name, ' ', 3);
-
     M = data.data;
-
     X   = M(:,1);
     Y   = M(:,2);
     v_x = M(:,3);
     v_y = M(:,4);
-    
-    
-    % need to reshape cuz they are all flattened
-    [n_cols, n_rows] = extract_cols_rows(file_name);
+    mask = M(:,5);
+end
 
+function [] = plot_processed_data(X, Y, v_x, v_y, n_cols, n_rows)
+
+    % need to reshape cuz they are all flattened
     X  = reshape(X, n_cols, n_rows)';
     Y  = reshape(Y, n_cols, n_rows)';
     v_x = reshape(v_x, n_cols, n_rows)';
     v_y = reshape(v_y, n_cols, n_rows)';
-
-
+    
+    X = X(1:end-1, 1:end-1);
+    Y = Y(1:end-1, 1:end-1);
+    v_x = v_x(1:end-1, 1:end-1);
+    v_y = v_y(1:end-1, 1:end-1);
 
     % plotting like plot_vel_field
     vel_magnitudes = hypot(v_x, v_y);
-    figure
+    
     imagesc(X(1,:), Y(:,1), vel_magnitudes)
     set(gca,'YDir','normal')
     axis equal
@@ -183,4 +222,27 @@ function [n_cols, n_rows] = extract_cols_rows(file_name)
     reg_expr = regexp(third_line, 'I=(\d+),\s*J=(\d+)', 'tokens');
     n_cols = str2double(reg_expr{1}{1}); % I
     n_rows = str2double(reg_expr{1}{2}); % J
+end
+
+function [diffs] = compare_res_w_davis(processed_data_path, img_path)
+    [X, Y, v_x, v_y, mask] = get_processed_data(processed_data_path);
+    [n_cols, n_rows] = extract_cols_rows(processed_data_path);
+    
+    V_matlab = get_velocity_field(img_path);
+    
+
+    %have 3 figs side-by-side - the DaVis, ours, and the diff
+    figure
+    tiledlayout(1,3)
+
+    nexttile
+    plot_processed_data(X, Y, v_x, v_y, n_cols, n_rows);
+    title("DaVis")
+
+    nexttile
+    plot_velocity_field(V_matlab, mask)
+    title("MATLAB")
+
+    nexttile
+    
 end
