@@ -1,0 +1,10 @@
+region,position_mm,aoa_deg,peak_number,frequency_hz
+Trailing edge,55,0,1,418.750019628945
+Trailing edge,55,0,2,837.500039257891
+Trailing edge,55,0,3,1253.12505874035
+Trailing edge,55,5,1,537.500025195363
+Trailing edge,55,5,2,231.250010839865
+Trailing edge,55,5,3,512.500024023485
+Shear layer,35,15,1,71.8750033691474
+Shear layer,35,15,2,25.0000011718773
+Shear layer,35,15,3,115.625005419933

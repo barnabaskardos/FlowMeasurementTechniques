@@ -1,0 +1,3 @@
+ensemble,n_snapshots,sample_rate_hz,nyquist_hz,frequency_resolution_hz,record_duration_s
+20 snapshots,20,8.3,4.15,0.415,2.40963855421687
+100 snapshots,100,8.3,4.15,0.083,12.0481927710843
